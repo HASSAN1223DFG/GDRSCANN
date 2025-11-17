@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كاشف المواقع والملفات الشامل</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background: #050814;
+    color: #f5f5f5;
+    direction: rtl;
+    text-align: center;
+  }
+  h1 { margin-bottom: 5px; }
+  .subtitle { color:#9da4c0; margin-bottom:25px; font-size:14px; }
+  .container {
+    max-width: 950px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background:#0c1124;
+    border-radius:16px;
+    padding:20px;
+    text-align:right;
+    box-shadow:0 0 25px rgba(0,0,0,0.4);
+  }
+  .card h2 { margin:0 0 10px; }
+  .card p { margin:0 0 10px; color:#9da4c0; font-size:14px; }
+  input[type="text"] {
+    width:100%; padding:10px;
+    border-radius:10px; border:none;
+    background:#151a33; color:#fff;
+    margin:8px 0 12px; font-size:14px;
+  }
+  input[type="file"] { width:100%; margin:10px 0 15px; }
+  button {
+    padding:10px 20px;
+    border-radius:999px;
+    border:none;
+    cursor:pointer;
+    background:linear-gradient(135deg,#4a8bff,#7b5cff);
+    color:#fff; font-weight:bold; font-size:14px;
+  }
+  button:hover { opacity:0.9; }
+  .result {
+    margin-top:15px;
+    padding:12px;
+    border-radius:12px;
+    background:#11182f;
+    font-size:14px;
+    white-space:pre-wrap;
+  }
+  .risk-low { border:1px solid #3dd68c; }
+  .risk-medium { border:1px solid #ffb020; }
+  .risk-high { border:1px solid #ff4d4d; }
+  .disclaimer {
+    max-width:950px;
+    margin:25px auto 0;
+    font-size:12px;
+    color:#9da4c0;
+    text-align:right;
+    background:#0c1124;
+    padding:12px 15px;
+    border-radius:12px;
+    border:1px dashed #252b46;
+  }
+</style>
+</head>
+<body>
+
+<h1>🛡️ كاشف المواقع والملفات الشامل</h1>
+<div class="subtitle">
+  أداة تحليلية تساعدك على تقييم خطورة المواقع والملفات قبل فتحها (ليست مضاد فيروسات حقيقي).
+</div>
+
+<div class="container">
+  <!-- فحص موقع -->
+  <div class="card">
+    <h2>🔗 فحص موقع (URL Scan)</h2>
+    <p>أدخل رابط الموقع ليتم تحليله من الخادم مع تقرير مفصل عن مستوى الخطورة.</p>
+    <input type="text" id="urlInput" placeholder="مثال: https://example.com/login">
+    <button onclick="scanUrl()">فحص شامل للرابط</button>
+    <div id="urlResult" class="result">لم يتم الفحص بعد.</div>
+  </div>
+
+  <!-- فحص ملف -->
+  <div class="card">
+    <h2>📁 فحص ملف (File Scan)</h2>
+    <p>اختر ملفاً من جهازك لتحليل الامتداد والاسم والحجم بشكل تقديري (الملف لا يُرسل للسيرفر).</p>
+    <input type="file" id="fileInput">
+    <button onclick="scanFile()">فحص الملف</button>
+    <div id="fileResult" class="result">لم يتم الفحص بعد.</div>
+  </div>
+</div>
+
+<div class="disclaimer">
+⚠️ تنبيه: هذه الأداة تعتمد على تحليل شكلي وقواعد تقديرية فقط (Heuristics)، ولا تغني عن استعمال برامج حماية
+أو خدمات احترافية مثل VirusTotal. استخدمها كطبقة أمان إضافية، وليس مصدراً وحيداً للحكم على الملفات أو المواقع.
+</div>
+
+<script>
+// ===== فحص المواقع عبر السيرفر /api/scan =====
+async function scanUrl() {
+  const urlInput = document.getElementById('urlInput');
+  const resultBox = document.getElementById('urlResult');
+  const url = urlInput.value.trim();
+
+  if (!url) {
+    resultBox.textContent = '⚠ يرجى إدخال رابط أولاً.';
+    resultBox.className = 'result';
+    return;
+  }
+
+  resultBox.textContent = '⏳ جاري إرسال الرابط للخادم وتحليله...';
+  resultBox.className = 'result';
+
+  try {
+    const response = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      resultBox.textContent = '❌ حدث خطأ أثناء التحليل: ' + (data.error || response.status);
+      return;
+    }
+
+    let css = 'result ';
+    if (data.riskLevel === 'منخفض') css += 'risk-low';
+    else if (data.riskLevel === 'متوسط') css += 'risk-medium';
+    else css += 'risk-high';
+
+    const lines = [];
+    lines.push(`🔍 الرابط النهائي: ${data.httpInfo?.finalUrl || data.url}`);
+    lines.push(`📛 المضيف (Host): ${data.host}`);
+    if (data.httpInfo?.status) lines.push(`🌐 كود الاستجابة HTTP: ${data.httpInfo.status}`);
+    if (data.httpInfo?.title) lines.push(`📄 عنوان الصفحة: ${data.httpInfo.title}`);
+    lines.push('');
+    lines.push(`🎯 مستوى الخطورة: ${data.riskLevel} (الدرجة: ${data.riskScore})`);
+    lines.push('');
+    lines.push('📌 أسباب التقييم:');
+    data.reasons.forEach(r => lines.push('- ' + r));
+
+    resultBox.className = css;
+    resultBox.textContent = lines.join('\n');
+
+  } catch (err) {
+    console.error(err);
+    resultBox.textContent = '⚠ فشل الاتصال بالخادم. تأكد أن النشر على Vercel تم بنجاح.';
+    resultBox.className = 'result';
+  }
+}
+
+
+// ===== فحص الملفات محلياً في المتصفح =====
+function scanFile() {
+  const input = document.getElementById('fileInput');
+  const resultBox = document.getElementById('fileResult');
+  const file = input.files[0];
+
+  if (!file) {
+    resultBox.textContent = '⚠ يرجى اختيار ملف أولاً.';
+    resultBox.className = 'result';
+    return;
+  }
+
+  const name = file.name;
+  const size = file.size;
+  const sizeMB = (size / (1024 * 1024)).toFixed(2);
+
+  const lowerName = name.toLowerCase();
+  const extMatch = lowerName.match(/\.([a-z0-9]+)$/);
+  const ext = extMatch ? extMatch[1] : 'بدون امتداد';
+
+  const dangerousExt = ['exe','bat','cmd','com','scr','js','vbs','ps1','jar','apk','msi','dll','sys'];
+  const maybeRiskyExt = ['zip','rar','7z','iso','img'];
+
+  let score = 0;
+  let reasons = [];
+
+  if (dangerousExt.includes(ext)) {
+    score -= 40;
+    reasons.push(`🚨 الامتداد (${ext}) يعتبر خطيراً (ملف تنفيذي).`);
+  } else if (maybeRiskyExt.includes(ext)) {
+    score -= 15;
+    reasons.push(`⚠ الامتداد (${ext}) ملف مضغوط، قد يحتوي على برمجيات خبيثة.`);
+  } else {
+    score += 5;
+    reasons.push(`✅ الامتداد (${ext}) ليس من الامتدادات التنفيذية الشائعة.`);
+  }
+
+  if (lowerName.match(/\.(pdf|jpg|jpeg|png|docx?|xlsx?|pptx?)\.([a-z0-9]+)$/)) {
+    score -= 25;
+    reasons.push('🚨 الملف يحتوي على امتدادين (مثل file.pdf.exe) وهذا سلوك خبيث شائع.');
+  }
+
+  const badWords = ['crack','keygen','hack','patch','nulled','serial','loader'];
+  badWords.forEach(w => {
+    if (lowerName.includes(w)) {
+      score -= 20;
+      reasons.push(`⚠ اسم الملف يحتوي على كلمة مشبوهة: "${w}".`);
+    }
+  });
+
+  if (sizeMB < 0.05) {
+    score -= 10;
+    reasons.push('⚠ حجم الملف صغير جداً، بعض البرمجيات الخبيثة تكون صغيرة الحجم.');
+  } else if (sizeMB > 200) {
+    score -= 5;
+    reasons.push('⚠ الملف كبير جداً، إذا لم تتوقع هذا الحجم فكن حذراً.');
+  } else {
+    score += 5;
+    reasons.push('✅ حجم الملف ضمن النطاق الطبيعي.');
+  }
+
+  let riskLevel;
+  let css = 'result ';
+  if (score >= 5) {
+    riskLevel = 'منخفض';
+    css += 'risk-low';
+  } else if (score >= -20) {
+    riskLevel = 'متوسط';
+    css += 'risk-medium';
+  } else {
+    riskLevel = 'عالي';
+    css += 'risk-high';
+  }
+
+  let info =
+    `اسم الملف: ${name}\n` +
+    `الامتداد: ${ext}\n` +
+    `الحجم: ${sizeMB} ميجابايت\n\n` +
+    `🎯 مستوى الخطورة: ${riskLevel} (الدرجة: ${score})\n\n` +
+    '📌 أسباب التقييم:\n' +
+    reasons.map(r => '- ' + r).join('\n');
+
+  resultBox.className = css;
+  resultBox.textContent = info;
+}
+</script>
+
+</body>
+</html>
